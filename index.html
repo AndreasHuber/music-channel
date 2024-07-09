@@ -46,6 +46,7 @@
             position: relative;
             width: 100vw;
             height: 100vh;
+            display: none; /* Hide initially */
         }
 
         #player {
@@ -105,7 +106,7 @@
     </div>
     <img id="logo" src="andreas_music_channel.png" alt="Andreas' Music Channel">
     <div id="player-container">
-        <div id="player"></div>
+        <iframe id="player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
         <div id="overlay"></div>
     </div>
     <div id="info"></div>
@@ -117,76 +118,38 @@
             <feGaussianBlur stdDeviation="2" />
         </filter>
     </svg>
+    <div id="duration-player" style="display: none;"></div>
     <script>
-        var tag = document.createElement('script');
-        tag.src = "https://www.youtube.com/iframe_api";
-        var firstScriptTag = document.getElementsByTagName('script')[0];
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
         const videoIds = [
             'iwTch-Kon38',
             '4yNxUYIEkuA',
         ];
 
-        var player;
-        var currentVideoIndex = -1;
-        var nextVideoIndex = getRandomVideoIndex();
+        let currentVideoIndex = -1;
+        let nextVideoIndex = getRandomVideoIndex();
+        const player = document.getElementById('player');
+        const playerContainer = document.getElementById('player-container');
+        let videoTimer;
+        let durationPlayer;
 
         function onYouTubeIframeAPIReady() {
-            player = new YT.Player('player', {
-                height: '100%',
-                width: '100%',
-                playerVars: {
-                    'autoplay': 1,
-                    'controls': 0,
-                    'showinfo': 0,
-                    'modestbranding': 1,
-                    'rel': 0,
-                    'fs': 0,
-                    'cc_load_policy': 0,
-                    'iv_load_policy': 3,
-                    'autohide': 1,
-                    'start': 23,
-                    'mute': 1
-                },
-                events: {
-                    'onReady': onPlayerReady,
-                    'onStateChange': onPlayerStateChange,
-                    'onError': onPlayerError
-                },
-                origin: window.location.origin
+            durationPlayer = new YT.Player('duration-player', {
+                height: '1',
+                width: '1',
+                videoId: videoIds[0],
+                playerVars: {'autoplay': 0, 'controls': 0},
+                events: {'onReady': onDurationPlayerReady}
             });
         }
 
-        function onPlayerReady(event) {
-            console.log("ready")
-            event.target.cueVideoById(videoIds[nextVideoIndex]);
-            event.target.playVideoAt(23);
-        }
-
-        function onPlayerStateChange(event) {
-            if (event.data === YT.PlayerState.ENDED) {
-                displayVideoInfo(true); // Show info when video ends
-                setTimeout(playRandomVideo, 5000); // Play next video after 5 seconds
-            } else if (event.data === YT.PlayerState.PLAYING) {
-                displayVideoInfo(false); // Show info when video starts
-            }
-        }
-
-        function onPlayerError(event) {
-            playRandomVideo(); // Skip to next video on error
+        function onDurationPlayerReady(event) {
+            // Duration player is ready
         }
 
         function switchOn() {
-            // Hide the cover screen
             document.getElementById('cover-screen').style.display = 'none';
-
-            setTimeout(() => {
-                if (player.getPlayerState() === YT.PlayerState.PLAYING) {
-                    player.unMute();
-                    player.setVolume(100);
-                }
-            }, 1000);
+            playerContainer.style.display = 'block';
+            playRandomVideo();
         }
 
         function getRandomVideoIndex() {
@@ -198,36 +161,72 @@
         }
 
         function playRandomVideo() {
-            player.loadVideoById({
-                videoId: videoIds[nextVideoIndex],
-            });
             currentVideoIndex = nextVideoIndex;
             nextVideoIndex = getRandomVideoIndex();
-            player.playVideo();
-            player.cueVideoById(videoIds[nextVideoIndex]);
+            
+            player.src = `https://www.youtube.com/embed/${videoIds[currentVideoIndex]}?autoplay=1&controls=0&showinfo=0&modestbranding=1&rel=0&fs=0&cc_load_policy=0&iv_load_policy=3&autohide=1&start=23&enablejsapi=1&origin=${window.location.origin}`;
+            
+            getVideoDuration(videoIds[currentVideoIndex])
+                .then(duration => {
+                    displayVideoInfo();
+                    
+                    // Set up next video
+                    clearTimeout(videoTimer);
+                    videoTimer = setTimeout(playRandomVideo, duration * 1000);
+                })
+                .catch(error => {
+                    console.error('Error getting video duration:', error);
+                    // If there's an error, use a default duration of 5 minutes
+                    clearTimeout(videoTimer);
+                    videoTimer = setTimeout(playRandomVideo, 300000);
+                });
         }
 
-        function displayVideoInfo(isEnding) {
-            const videoData = player.getVideoData();
-            const title = videoData.title;
-            const artistAndSong = title.split(/ - | – /); // Handle different dash types
-            const artist = artistAndSong[0];
-            const song = artistAndSong[1].split(/[\(\[\{]/)[0].trim(); // Remove anything in parentheses, square brackets, or curly braces
+        function getVideoDuration(videoId) {
+            return new Promise((resolve, reject) => {
+                durationPlayer.loadVideoById(videoId);
+                let checkDuration = setInterval(() => {
+                    let duration = durationPlayer.getDuration();
+                    if (duration > 0) {
+                        clearInterval(checkDuration);
+                        durationPlayer.stopVideo();
+                        resolve(duration);
+                    }
+                }, 100);
+                
+                // Timeout after 5 seconds
+                setTimeout(() => {
+                    clearInterval(checkDuration);
+                    reject('Timeout getting video duration');
+                }, 5000);
+            });
+        }
 
-            const infoElement = document.getElementById('info');
-            infoElement.innerHTML = `<span class="artist">${artist}</span> - ${song}`;
-            infoElement.classList.add('visible');
+        function displayVideoInfo() {
+            fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoIds[currentVideoIndex]}`)
+                .then(response => response.json())
+                .then(data => {
+                    const title = data.title;
+                    const artistAndSong = title.split(/ - | – /);
+                    const artist = artistAndSong[0];
+                    const song = artistAndSong[1] ? artistAndSong[1].split(/[\(\[\{]/)[0].trim() : 'Unknown';
 
-            setTimeout(() => {
-                infoElement.classList.remove('visible');
-            }, 5000); // Hide info after 5 seconds
+                    const infoElement = document.getElementById('info');
+                    infoElement.innerHTML = `<span class="artist">${artist}</span> - ${song}`;
+                    infoElement.classList.add('visible');
+
+                    setTimeout(() => {
+                        infoElement.classList.remove('visible');
+                    }, 5000);
+                });
         }
 
         window.addEventListener('keydown', function(e) {
-            if (e.keyCode === 13) { // Check if Enter key is pressed (keyCode for Enter is 13)
+            if (e.keyCode === 13) {
                 switchOn();
             }
         });
     </script>
+    <script src="https://www.youtube.com/iframe_api"></script>
 </body>
 </html>
