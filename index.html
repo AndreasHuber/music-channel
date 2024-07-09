@@ -199,19 +199,21 @@
                 width: '1',
                 videoId: videoIds[0],
                 playerVars: {'autoplay': 0, 'controls': 0},
-                events: {'onReady': onDurationPlayerReady}
+                //events: {'onReady': onDurationPlayerReady}
             });
         }
 
-        function onDurationPlayerReady(event) {
+        /*function onDurationPlayerReady(event) {
             // Duration player is ready
-        }
+        }*/
 
         function switchOn() {
             document.getElementById('cover-screen').style.display = 'none';
             playerContainer.style.display = 'block';
             playRandomVideo();
-            hideBanners();
+            const banners = document.querySelectorAll('.banner');
+            banners.forEach(banner => banner.classList.add('visible'));
+            setTimeout(hideBanners, 10);
         }
 
         function getRandomVideoIndex() {
