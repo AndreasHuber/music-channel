@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AMC - Andreas' Music Channel</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: black;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+
+        #cover-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            cursor: pointer;
+        }
+
+        #on-switch {
+            font-size: 100px;
+            color: white;
+        }
+
+        #logo {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 5;
+            width: 150px;
+            height: auto;
+            opacity: 0.8;
+        }
+
+        #player-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #player {
+            width: 100%;
+            height: 100%;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            background-color: transparent;
+        }
+
+        #info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 28px;
+            padding: 10px 20px;
+            z-index: 5;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #info.visible {
+            opacity: 1;
+        }
+
+        #info::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
+            background-color: #e8c66c;
+            filter: url(#brush-filter);
+            z-index: -1;
+            transform: rotate(-1deg);
+        }
+
+        #info .artist {
+            color: #d87465;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="cover-screen" onclick="switchOn()">
+        <div id="on-switch">⏻</div>
+    </div>
+    <img id="logo" src="andreas_music_channel.png" alt="Andreas' Music Channel">
+    <div id="player-container">
+        <div id="player"></div>
+        <div id="overlay"></div>
+    </div>
+    <div id="info"></div>
+    <svg style="position: absolute; width: 0; height: 0;" xmlns="http://www.w3.org/2000/svg">
+        <filter id="brush-filter">
+            <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="5" seed="1" />
+            <feDisplacementMap in="SourceGraphic" scale="20" />
+            <feMorphology operator="dilate" radius="2" />
+            <feGaussianBlur stdDeviation="2" />
+        </filter>
+    </svg>
+    <script>
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        const videoIds = [
+            'iwTch-Kon38',
+            '4yNxUYIEkuA',
+        ];
+
+        var player;
+        var currentVideoIndex = -1;
+        var nextVideoIndex = getRandomVideoIndex();
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                playerVars: {
+                    'autoplay': 1,
+                    'controls': 0,
+                    'showinfo': 0,
+                    'modestbranding': 1,
+                    'rel': 0,
+                    'fs': 0,
+                    'cc_load_policy': 0,
+                    'iv_load_policy': 3,
+                    'autohide': 1,
+                    'start': 23,
+                    'mute': 1
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange,
+                    'onError': onPlayerError
+                },
+                origin: window.location.origin
+            });
+        }
+
+        function onPlayerReady(event) {
+            console.log("ready")
+            event.target.cueVideoById(videoIds[nextVideoIndex]);
+            event.target.playVideoAt(23);
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.ENDED) {
+                displayVideoInfo(true); // Show info when video ends
+                setTimeout(playRandomVideo, 5000); // Play next video after 5 seconds
+            } else if (event.data === YT.PlayerState.PLAYING) {
+                displayVideoInfo(false); // Show info when video starts
+            }
+        }
+
+        function onPlayerError(event) {
+            playRandomVideo(); // Skip to next video on error
+        }
+
+        function switchOn() {
+            // Hide the cover screen
+            document.getElementById('cover-screen').style.display = 'none';
+
+            setTimeout(() => {
+                if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+                    player.unMute();
+                    player.setVolume(100);
+                }
+            }, 1000);
+        }
+
+        function getRandomVideoIndex() {
+            let randomIndex;
+            do {
+                randomIndex = Math.floor(Math.random() * videoIds.length);
+            } while (randomIndex === currentVideoIndex);
+            return randomIndex;
+        }
+
+        function playRandomVideo() {
+            player.loadVideoById({
+                videoId: videoIds[nextVideoIndex],
+            });
+            currentVideoIndex = nextVideoIndex;
+            nextVideoIndex = getRandomVideoIndex();
+            player.playVideo();
+            player.cueVideoById(videoIds[nextVideoIndex]);
+        }
+
+        function displayVideoInfo(isEnding) {
+            const videoData = player.getVideoData();
+            const title = videoData.title;
+            const artistAndSong = title.split(/ - | – /); // Handle different dash types
+            const artist = artistAndSong[0];
+            const song = artistAndSong[1].split(/[\(\[\{]/)[0].trim(); // Remove anything in parentheses, square brackets, or curly braces
+
+            const infoElement = document.getElementById('info');
+            infoElement.innerHTML = `<span class="artist">${artist}</span> - ${song}`;
+            infoElement.classList.add('visible');
+
+            setTimeout(() => {
+                infoElement.classList.remove('visible');
+            }, 5000); // Hide info after 5 seconds
+        }
+
+        window.addEventListener('keydown', function(e) {
+            if (e.keyCode === 13) { // Check if Enter key is pressed (keyCode for Enter is 13)
+                switchOn();
+            }
+        });
+    </script>
+</body>
+</html>
