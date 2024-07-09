@@ -97,6 +97,30 @@
             color: #d87465;
             font-weight: bold;
         }
+
+        .banner {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 50%;
+            background-color: black;
+            transition: transform 7s ease;
+            z-index: 3;
+        }
+
+        .banner-top {
+            top: 0;
+            transform: translateY(-100%);
+        }
+
+        .banner-bottom {
+            bottom: 0;
+            transform: translateY(100%);
+        }
+
+        .banner.visible {
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body>
@@ -107,6 +131,8 @@
     <div id="player-container">
         <iframe id="player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
         <div id="overlay"></div>
+        <div class="banner banner-top"></div>
+        <div class="banner banner-bottom"></div>
     </div>
     <div id="info"></div>
     <svg style="position: absolute; width: 0; height: 0;" xmlns="http://www.w3.org/2000/svg">
@@ -120,6 +146,8 @@
     <div id="duration-player" style="display: none;"></div>
     <script>
         const videoIds = [
+            //Python Millipede - Monteverde, Costa Rica
+            'A0sDmjBWCuE',
             //Cultura Tres - La Cruz Del Seis
             'iwTch-Kon38',
             // Sepultura - Guardians of Earth
@@ -139,6 +167,8 @@
         const player = document.getElementById('player');
         const playerContainer = document.getElementById('player-container');
         let videoTimer;
+        let bannerHideTimer;
+        let bannerTimer;
         let durationPlayer;
 
         function onYouTubeIframeAPIReady() {
@@ -159,6 +189,7 @@
             document.getElementById('cover-screen').style.display = 'none';
             playerContainer.style.display = 'block';
             playRandomVideo();
+            hideBanners();
         }
 
         function getRandomVideoIndex() {
@@ -174,19 +205,38 @@
             nextVideoIndex = getRandomVideoIndex();
 
             displayVideoInfo();
-            player.src = `https://www.youtube.com/embed/${videoIds[currentVideoIndex]}?autoplay=1&controls=0&showinfo=0&modestbranding=1&rel=0&fs=0&cc_load_policy=0&iv_load_policy=3&autohide=1&start=23&enablejsapi=1&origin=${window.location.origin}`;
-            
+            player.src = `https://www.youtube.com/embed/${videoIds[currentVideoIndex]}?autoplay=1&controls=0&showinfo=0&modestbranding=1&rel=0&fs=0&cc_load_policy=0&iv_load_policy=3&autohide=1&enablejsapi=1&origin=${window.location.origin}`;
+
             getVideoDuration(videoIds[currentVideoIndex])
                 .then(duration => {
                     clearTimeout(videoTimer);
+                    clearTimeout(bannerTimer);
+
+                    // Set timer for next video
                     videoTimer = setTimeout(playRandomVideo, duration * 1000);
+                    bannerHideTimer = setTimeout(hideBanners, (duration + 1) * 1000);
+
+                    // Set timer for showing banners before video ends
+                    bannerTimer = setTimeout(showBanners, (duration - 9) * 1000);
                 })
                 .catch(error => {
                     console.error('Error getting video duration:', error);
                     // If there's an error, use a default duration of 200 s
                     clearTimeout(videoTimer);
+                    clearTimeout(bannerTimer);
                     videoTimer = setTimeout(playRandomVideo, 200000);
+                    bannerTimer = setTimeout(showBanners, 195000); // Show banners 5 seconds before default duration ends
                 });
+        }
+
+        function showBanners() {
+            const banners = document.querySelectorAll('.banner');
+            banners.forEach(banner => banner.classList.add('visible'));
+        }
+
+        function hideBanners() {
+            const banners = document.querySelectorAll('.banner');
+            banners.forEach(banner => banner.classList.remove('visible'));
         }
 
         function getVideoDuration(videoId) {
